@@ -1,0 +1,175 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: simple-webapp
+  annotations:
+    description: "Template for a simple web application with database"
+    tags: "quickstart,nodejs,mongodb"
+objects:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: ${DATABASE_SERVICE_NAME}
+    stringData:
+      database-user: ${DATABASE_USER}
+      database-password: ${DATABASE_PASSWORD}
+      database-admin-password: ${DATABASE_ADMIN_PASSWORD}
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${DATABASE_SERVICE_NAME}
+    spec:
+      ports:
+        - name: mongodb
+          port: 27017
+      selector:
+        name: ${DATABASE_SERVICE_NAME}
+
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${DATABASE_SERVICE_NAME}
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          name: ${DATABASE_SERVICE_NAME}
+      template:
+        metadata:
+          labels:
+            name: ${DATABASE_SERVICE_NAME}
+        spec:
+          containers:
+            - name: mongodb
+              image: mongodb:3.6
+              ports:
+                - containerPort: 27017
+              env:
+                - name: MONGODB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${DATABASE_SERVICE_NAME}
+                      key: database-user
+                - name: MONGODB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${DATABASE_SERVICE_NAME}
+                      key: database-password
+                - name: MONGODB_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${DATABASE_SERVICE_NAME}
+                      key: database-admin-password
+                - name: MONGODB_DATABASE
+                  value: ${DATABASE_NAME}
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${NAME}
+    spec:
+      ports:
+        - name: web
+          port: 8080
+      selector:
+        name: ${NAME}
+
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: ${NAME}
+    spec:
+      host: ${APPLICATION_DOMAIN}
+      to:
+        kind: Service
+        name: ${NAME}
+
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${NAME}
+    spec:
+      replicas: ${{REPLICAS}}
+      selector:
+        matchLabels:
+          name: ${NAME}
+      template:
+        metadata:
+          labels:
+            name: ${NAME}
+        spec:
+          containers:
+            - name: nodejs
+              image: nodejs:14
+              ports:
+                - containerPort: 8080
+              env:
+                - name: DATABASE_SERVICE_NAME
+                  value: ${DATABASE_SERVICE_NAME}
+                - name: MONGODB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${DATABASE_SERVICE_NAME}
+                      key: database-user
+                - name: MONGODB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${DATABASE_SERVICE_NAME}
+                      key: database-password
+                - name: MONGODB_DATABASE
+                  value: ${DATABASE_NAME}
+                - name: MONGODB_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${DATABASE_SERVICE_NAME}
+                      key: database-admin-password
+
+parameters:
+  - name: NAME
+    displayName: Name
+    description: The name assigned to all objects and the frontend service.
+    required: true
+    value: nodejs-app
+
+  - name: DATABASE_SERVICE_NAME
+    displayName: Database Service Name
+    description: The name of the MongoDB service.
+    required: true
+    value: mongodb
+
+  - name: DATABASE_USER
+    displayName: MongoDB Username
+    description: Username for MongoDB user.
+    required: true
+    value: user
+
+  - name: DATABASE_PASSWORD
+    displayName: MongoDB Password
+    description: Password for the MongoDB user.
+    generate: expression
+    from: "[a-zA-Z0-9]{16}"
+
+  - name: DATABASE_ADMIN_PASSWORD
+    displayName: MongoDB Admin Password
+    description: Password for the MongoDB admin user.
+    generate: expression
+    from: "[a-zA-Z0-9]{16}"
+
+  - name: DATABASE_NAME
+    displayName: Database Name
+    description: Name of the MongoDB database.
+    required: true
+    value: sampledb
+
+  - name: APPLICATION_DOMAIN
+    displayName: Application Hostname
+    description: The exposed hostname for the application.
+    value: ""
+
+  - name: REPLICAS
+    displayName: Number of replicas
+    description: Number of replicas for the web application.
+    required: true
+    value: "1"
+    parse: integer
