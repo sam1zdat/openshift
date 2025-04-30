@@ -1,0 +1,292 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: three-tier-app
+  annotations:
+    description: "Template for a three-tier application (frontend, backend, database)"
+    tags: "quickstart,nodejs,java,postgresql"
+objects:
+  # Secret pour la base de données
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: ${DATABASE_SERVICE_NAME}
+    stringData:
+      database-user: ${DATABASE_USER}
+      database-password: ${DATABASE_PASSWORD}
+      database-admin-password: ${DATABASE_ADMIN_PASSWORD}
+
+  # Service et déploiement pour la base de données
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${DATABASE_SERVICE_NAME}
+    spec:
+      ports:
+      - name: postgresql
+        port: 5432
+      selector:
+        name: ${DATABASE_SERVICE_NAME}
+
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${DATABASE_SERVICE_NAME}
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          name: ${DATABASE_SERVICE_NAME}
+      template:
+        metadata:
+          labels:
+            name: ${DATABASE_SERVICE_NAME}
+        spec:
+          containers:
+          - name: postgresql
+            image: postgres:13
+            ports:
+            - containerPort: 5432
+            env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ${DATABASE_SERVICE_NAME}
+                  key: database-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ${DATABASE_SERVICE_NAME}
+                  key: database-password
+            - name: POSTGRES_DB
+              value: ${DATABASE_NAME}
+            volumeMounts:
+            - name: postgresql-data
+              mountPath: /var/lib/postgresql/data
+          volumes:
+          - name: postgresql-data
+            emptyDir: {}
+
+  # Backend service et déploiement
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${BACKEND_SERVICE_NAME}
+    spec:
+      ports:
+      - name: http
+        port: 8080
+      selector:
+        name: ${BACKEND_SERVICE_NAME}
+
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${BACKEND_SERVICE_NAME}
+    spec:
+      replicas: ${{BACKEND_REPLICAS}}
+      selector:
+        matchLabels:
+          name: ${BACKEND_SERVICE_NAME}
+      template:
+        metadata:
+          labels:
+            name: ${BACKEND_SERVICE_NAME}
+        spec:
+          containers:
+          - name: backend
+            image: ${BACKEND_IMAGE}
+            ports:
+            - containerPort: 8080
+            env:
+            - name: DATABASE_SERVICE_NAME
+              value: ${DATABASE_SERVICE_NAME}
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ${DATABASE_SERVICE_NAME}
+                  key: database-user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ${DATABASE_SERVICE_NAME}
+                  key: database-password
+            - name: DATABASE_NAME
+              value: ${DATABASE_NAME}
+            - name: DATABASE_PORT
+              value: "5432"
+            resources:
+              limits:
+                memory: ${BACKEND_MEMORY_LIMIT}
+                cpu: ${BACKEND_CPU_LIMIT}
+              requests:
+                memory: ${BACKEND_MEMORY_REQUEST}
+                cpu: ${BACKEND_CPU_REQUEST}
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: 8080
+              initialDelaySeconds: 15
+              timeoutSeconds: 1
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 8080
+              initialDelaySeconds: 30
+              timeoutSeconds: 1
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+
+  # Frontend service, route et déploiement
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${FRONTEND_SERVICE_NAME}
+    spec:
+      ports:
+      - name: http
+        port: 8080
+      selector:
+        name: ${FRONTEND_SERVICE_NAME}
+
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: ${FRONTEND_SERVICE_NAME}
+    spec:
+      host: ${APPLICATION_DOMAIN}
+      to:
+        kind: Service
+        name: ${FRONTEND_SERVICE_NAME}
+
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${FRONTEND_SERVICE_NAME}
+    spec:
+      replicas: ${{FRONTEND_REPLICAS}}
+      selector:
+        matchLabels:
+          name: ${FRONTEND_SERVICE_NAME}
+      template:
+        metadata:
+          labels:
+            name: ${FRONTEND_SERVICE_NAME}
+        spec:
+          containers:
+          - name: frontend
+            image: ${FRONTEND_IMAGE}
+            ports:
+            - containerPort: 8080
+            env:
+            - name: BACKEND_URL
+              value: http://${BACKEND_SERVICE_NAME}:8080
+            resources:
+              limits:
+                memory: ${FRONTEND_MEMORY_LIMIT}
+                cpu: ${FRONTEND_CPU_LIMIT}
+              requests:
+                memory: ${FRONTEND_MEMORY_REQUEST}
+                cpu: ${FRONTEND_CPU_REQUEST}
+            readinessProbe:
+              httpGet:
+                path: /
+                port: 8080
+              initialDelaySeconds: 10
+              timeoutSeconds: 1
+            livenessProbe:
+              httpGet:
+                path: /
+                port: 8080
+              initialDelaySeconds: 30
+              timeoutSeconds: 1
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+
+  # ConfigMap
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${APP_CONFIG_MAP}
+    data:
+      app.properties: |
+        environment=${ENVIRONMENT}
+        logging.level=${LOGGING_LEVEL}
+        feature.experimental=${ENABLE_EXPERIMENTAL_FEATURES}
+
+parameters:
+  - name: ENVIRONMENT
+    value: dev
+    required: true
+  - name: APPLICATION_DOMAIN
+    value: ""
+  - name: APP_CONFIG_MAP
+    value: app-config
+    required: true
+  - name: DATABASE_SERVICE_NAME
+    value: postgresql
+    required: true
+  - name: DATABASE_USER
+    value: dbuser
+    required: true
+  - name: DATABASE_PASSWORD
+    generate: expression
+    from: "[a-zA-Z0-9]{16}"
+  - name: DATABASE_ADMIN_PASSWORD
+    generate: expression
+    from: "[a-zA-Z0-9]{16}"
+  - name: DATABASE_NAME
+    value: appdb
+    required: true
+  - name: BACKEND_SERVICE_NAME
+    value: backend
+    required: true
+  - name: BACKEND_IMAGE
+    value: quay.io/redhattraining/do240-backend:latest
+    required: true
+  - name: BACKEND_REPLICAS
+    value: "2"
+    required: true
+    parse: integer
+  - name: BACKEND_MEMORY_LIMIT
+    value: 512Mi
+    required: true
+  - name: BACKEND_CPU_LIMIT
+    value: 500m
+    required: true
+  - name: BACKEND_MEMORY_REQUEST
+    value: 256Mi
+    required: true
+  - name: BACKEND_CPU_REQUEST
+    value: 200m
+    required: true
+  - name: FRONTEND_SERVICE_NAME
+    value: frontend
+    required: true
+  - name: FRONTEND_IMAGE
+    value: quay.io/redhattraining/do240-frontend:latest
+    required: true
+  - name: FRONTEND_REPLICAS
+    value: "2"
+    required: true
+    parse: integer
+  - name: FRONTEND_MEMORY_LIMIT
+    value: 256Mi
+    required: true
+  - name: FRONTEND_CPU_LIMIT
+    value: 300m
+    required: true
+  - name: FRONTEND_MEMORY_REQUEST
+    value: 128Mi
+    required: true
+  - name: FRONTEND_CPU_REQUEST
+    value: 100m
+    required: true
+  - name: LOGGING_LEVEL
+    value: INFO
+    required: true
+  - name: ENABLE_EXPERIMENTAL_FEATURES
+    value: "false"
+    required: true
