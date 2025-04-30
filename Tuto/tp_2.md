@@ -531,7 +531,7 @@ EOF
      metadata:
        name: \${NAME}
      spec:
-       replicas: \${REPLICAS}
+       replicas: \${{REPLICAS}}
        selector:
          matchLabels:
            name: \${NAME}
@@ -605,6 +605,7 @@ EOF
      description: Number of replicas for the web application.
      required: true
      value: "1"
+     parse: integer
    EOF
    
    oc create -f simple-template.yaml
