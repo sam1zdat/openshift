@@ -1,0 +1,13 @@
+{
+    "name": "nodejs-sample",
+    "version": "1.0.0",
+    "description": "Node.js sample application",
+    "main": "server.js",
+    "scripts": {
+      "start": "node server.js",
+      "test": "echo 'Tests passed'"
+    },
+    "dependencies": {
+      "express": "^4.17.1"
+    }
+  }

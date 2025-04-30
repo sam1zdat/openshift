@@ -54,7 +54,7 @@
 
 1. Déployez une application web simple à partir d'une image existante :
    ```bash
-   oc new-app --name=webapp httpd:2.4
+   oc new-app --name=webapp httpd:2.4 labels=app=web
    ```
 2. Suivez le déploiement :
    ```bash
@@ -84,6 +84,16 @@
    ```bash
    oc set resources deployment/webapp --limits=cpu=200m,memory=256Mi --requests=cpu=100m,memory=128Mi
    ```
+   ### Ressources allouées au pod
+
+- **Ressources garanties (requests)** :
+  - 🧠 **CPU** : 100 millicores (**0,1 vCPU**)
+  - 💾 **Mémoire** : 128 MiB
+
+- **Ressources maximales (limits)** :
+  - 🧠 **CPU** : 200 millicores (**0,2 vCPU**)
+  - 💾 **Mémoire** : 256 MiB
+
 4. Vérifiez les modifications :
    ```bash
    oc describe deployment webapp
@@ -159,8 +169,6 @@
            
            <div class="info">
                <p><strong>Informations sur le déploiement :</strong></p>
-               <p>Date de déploiement : $(date)</p>
-               <p>Hostname : $(hostname)</p>
                <p>Version : 1.0</p>
            </div>
            
@@ -173,18 +181,31 @@
 3. Créez un Dockerfile :
    ```bash
    cat > Dockerfile << EOF
-   FROM httpd:2.4
-   COPY index.html /usr/local/apache2/htdocs/
-   EXPOSE 80
-   CMD ["httpd-foreground"]
+   # Utilisation de l'image Nginx officielle compatible avec OpenShift
+   FROM registry.access.redhat.com/ubi8/nginx-120:latest
+   # Définition de l'utilisateur root temporairement
+   USER root
+   # Copie du fichier HTML dans le répertoire de Nginx
+   COPY index.html /opt/app-root/src/index.html
+   # Configuration des permissions pour OpenShift
+   RUN chown -R 1001:0 /usr/share/nginx && \
+       chmod -R g+rw /usr/share/nginx && \
+       chmod -R g+rw /var/log/nginx && \
+       chmod -R g+rw /etc/nginx
+   # Passage à l'utilisateur non-root (requis par OpenShift)
+   USER 1001
+   # Exposition du port 8080 (standard pour OpenShift)
+   EXPOSE 8080
+   # Commande pour démarrer Nginx
+   CMD ["nginx", "-g", "daemon off;"]
    EOF
    ```
 
 ### 3.2 Construction de l'image avec OpenShift
 
-1. Créez une nouvelle application à partir du Dockerfile :
+1. Créez une les ressources BuildConfig et ImageStream à partir du Dockerfile :
    ```bash
-   oc new-build --name=custom-app --binary=true
+   oc new-build --name=custom-app --binary=true --strategy=docker
    ```
 2. Démarrez la construction en utilisant les fichiers locaux :
    ```bash
@@ -192,6 +213,7 @@
    ```
 3. Vérifiez que l'image a été construite avec succès :
    ```bash
+   oc get buildconfig
    oc get builds
    oc get imagestream
    ```
@@ -213,15 +235,7 @@
 
 ## Partie 4 : Publication d'images dans le registre OpenShift
 
-### 4.1 Exploration du registre intégré
-
-1. Vérifiez si le registre intégré est exposé :
-   ```bash
-   oc get route -n openshift-image-registry
-   ```
-2. Si le registre n'est pas exposé, demandez à l'instructeur de l'exposer ou utilisez le registre interne directement.
-
-### 4.2 Modification et reconstruction de l'image
+### 4.1 Modification et reconstruction de l'image
 
 1. Modifiez le fichier index.html pour ajouter plus d'informations :
    ```bash
@@ -271,8 +285,6 @@
            
            <div class="info">
                <p><strong>Informations sur le déploiement :</strong></p>
-               <p>Date de déploiement : $(date)</p>
-               <p>Hostname : $(hostname)</p>
                <p>Version : 2.0</p>
                <p>Environnement : Production</p>
            </div>
@@ -297,7 +309,7 @@
    ```
 4. Rafraîchissez la page dans votre navigateur pour voir les changements.
 
-### 4.3 Gestion des versions d'images
+### 4.2 Gestion des versions d'images
 
 1. Taguez l'image avec une version spécifique :
    ```bash

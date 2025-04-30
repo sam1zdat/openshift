@@ -4,50 +4,47 @@
 
 1. Créez un ConfigMap pour la configuration de l'application :
    ```bash
-   cat > catalog-config.yaml << EOF
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: catalog-config
-   data:
-     application.properties: |
-       # Database configuration
-       db.host=mongodb
-       db.port=27017
-       db.name=catalogdb
-       db.collection=products
-       
-       # API configuration
-       api.version=v1
-       api.prefix=/api
-       
-       # Logging configuration
-       logging.level=INFO
-       logging.format=json
-       
-       # Feature flags
-       feature.recommendations=false
-       feature.reviews=true
-       feature.inventory=true
-   EOF
+   cat <<EOF > catalog-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalog-config
+data:
+  application.properties: |
+    # Database configuration
+    db.host=mongodb
+    db.port=27017
+    db.name=catalogdb
+    db.collection=products
+
+    # API configuration
+    api.version=v1
+    api.prefix=/api
+
+    # Logging configuration
+    logging.level=INFO
+    logging.format=json
+
+    feature.inventory=true
+EOF
    
    oc create -f catalog-config.yaml
    ```
 
 2. Créez un Secret pour les informations sensibles :
    ```bash
-   cat > catalog-secrets.yaml << EOF
-   apiVersion: v1
-   kind: Secret
-   metadata:
-     name: catalog-secrets
-   type: Opaque
-   stringData:
-     db.username: cataloguser
-     db.password: catalogpassword
-     api.key: a1b2c3d4e5f6g7h8i9j0
-   EOF
-   
+    cat <<EOF > catalog-secrets.yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: catalog-secrets
+    type: Opaque
+    stringData:
+      db.username: cataloguser
+      db.password: catalogpassword
+      api.key: a1b2c3d4e5f6g7h8i9j0
+    EOF
+
    oc create -f catalog-secrets.yaml
    ```
 
@@ -66,24 +63,23 @@
    cd ~/nodejs-app
    
    # Créez le fichier package.json
-   cat > package.json << EOF
-   {
-     "name": "nodejs-sample",
-     "version": "1.0.0",
-     "description": "Node.js sample application",
-     "main": "server.js",
-     "scripts": {
-       "start": "node server.js",
-       "test": "echo 'Tests passed'"
-     },
-     "dependencies": {
-       "express": "^4.17.1"
-     }
-   }
-   EOF
+    cat <<EOF > package.json
+    {
+      "name": "nodejs-sample",
+      "version": "1.0.0",
+      "description": "Node.js sample application",
+      "main": "server.js",
+      "scripts": {
+        "start": "node server.js",
+        "test": "echo 'Tests passed'"
+      },
+      "dependencies": {
+        "express": "^4.17.1"
+      }
+    }
+    EOF
    
    # Créez le fichier server.js
-   cat > server.js << EOF
    const express = require('express');
    const app = express();
    const port = process.env.PORT || 8080;
@@ -108,7 +104,7 @@
    app.listen(port, () => {
      console.log(\`Server running on port \${port}\`);
    });
-   EOF
+    EOF
    ```
 
 ### 2.2 Configuration du processus de build
