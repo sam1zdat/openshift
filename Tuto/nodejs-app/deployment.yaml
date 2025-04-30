@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: nodejs-sample
-          image: image-registry.openshift-image-registry.svc:5000/yriarteisabelle-dev/nodejs-sample:latest
+          image: image-registry.openshift-image-registry.svc:5000/<votre-projet>-dev/nodejs-sample:latest
           ports:
             - containerPort: 8080
           env:
