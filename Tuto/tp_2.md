@@ -102,9 +102,8 @@ EOF
    });
    
    app.listen(port, () => {
-     console.log(\`Server running on port \${port}\`);
+     console.log(`Server running on port ${port}`);
    });
-    EOF
    ```
 
 ### 2.2 Configuration du processus de build
@@ -125,7 +124,7 @@ EOF
          from:
            kind: ImageStreamTag
            namespace: openshift
-           name: nodejs:14-ubi8
+           name: nodejs:18-ubi8
      output:
        to:
          kind: ImageStreamTag
@@ -194,7 +193,8 @@ EOF
        spec:
          containers:
          - name: nodejs-sample
-           image: image-registry.openshift-image-registry.svc:5000/tp2-builds-<votre-nom>/nodejs-sample:latest
+           image: image-registry.openshift-image-registry.svc:5000/<votre-projet>-dev/nodejs-sample:latest
+
            ports:
            - containerPort: 8080
            env:
